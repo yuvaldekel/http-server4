@@ -9,6 +9,8 @@ def main():
 
         while True:
             (client_socket, client_address) = server_socket.accept()
+            
+            client_socket.close()
 
 if __name__ == "__main__":
     main()
