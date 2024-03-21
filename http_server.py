@@ -8,7 +8,7 @@ REDIRECT  = {'\\index1.html': '\\index.html'}
 FORBIDDEN = {'\\index3.html'}
 
 def check_request(request):
-    if  re.search("^(GET )((\/[a-zA-Z0-9=\-\.\?]{0,}){1,})( HTTP\/[1-9\.]+)", request):
+    if  re.search("^(GET )((\/[a-zA-Z0-9=\-\.\?&]{0,}){1,})( HTTP\/[1-9\.]+)", request):
         return True, request.split(' ')[1]
     return False, None
 
@@ -16,6 +16,15 @@ def get_next(path):
     number = int(path[path.index('=')+1:])
     next = number + 1 
     return next, len(str(next))
+
+def area(path):
+    height = int(path[path.index('height=') + 7: path.index('&')])
+    width = int(path[path.index('width=')+6:])
+    if  width * height % 2 == 0:
+        value = width * height // 2
+    else:
+        value = width * height / 2
+    return value, len(str(value))
 
 def get_file_data(path):
     file_type = path.split('.')[-1]
@@ -60,9 +69,12 @@ def create_response(path):
         path = '\\index.html'
     
     if path.startswith('\\calculate-next'):
-        print(1)
         next, length = get_next(path)
         return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: text/plain\r\n\r\n{next}".encode()
+    
+    if path.startswith('\\calculate-area'):
+        area_value, length = area(path)
+        return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: text/plain\r\n\r\n{area_value}".encode()
     
     if not path.endswith(('.html', '.jpg', '.js', '.css', '.ico', 'gif')):
         path = path + '.html'
