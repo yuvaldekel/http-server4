@@ -2,7 +2,7 @@ import socket
 import re
 import os 
 
-WWW_PATH = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4.4\wwwroot"
+WWW_PATH = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\wwwroot"
 SOCKET_TIMEOUT = 1
 REDIRECT  = {'\\index1.html': '\\index.html'}
 FORBIDDEN = {'\\index3.html'}
@@ -12,13 +12,13 @@ def check_request(request):
         return True, request.split(' ')[1]
     return False, None
 
-def file_data(path):
+def get_file_data(path):
     file_type = path.split('.')[-1]
     if file_type == 'txt' or file_type == 'html':
         file_type = "text/html; charset=utf-8"
         with open(WWW_PATH + path, 'r', encoding="utf8") as file:
             file_content = file.read()
-        return file_content, file_type, os.path.getsize(WWW_PATH + path)
+        return file_content, file_type, len(file_content)
     if file_type == 'js':
         file_type = "text/javascript; charset=utf-8"
         with open(WWW_PATH + path, 'r', encoding="utf8") as file:
@@ -58,7 +58,7 @@ def create_response(path):
         return "HTTP/1.1 302 Found\r\nLocation: {}\r\n".format(REDIRECT[path]).encode()
     
     try:
-        file_content, file_type, length = file_data(path)
+        file_content, file_type, length = get_file_data(path)
         if file_type == 'image/jpeg':
             return "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: {}\r\n\r\n".format(length, file_type).encode() + file_content
         return "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: {}\r\n\r\n{}".format(length, file_type, file_content).encode()
@@ -72,7 +72,7 @@ def create_response(path):
 def handle_client(client_socket):
     while True:
         try:
-            request = client_socket.recv(4096).decode()
+            request = client_socket.recv(1024).decode()
             end_line = request.index("\r\n")
             request = request[:end_line]
             valid, path = check_request(request)
@@ -95,6 +95,7 @@ def main():
 
         while True:
             (client_socket, client_address) = server_socket.accept() 
+            print(f"client connected {client_address}")
             client_socket.settimeout(SOCKET_TIMEOUT)
             handle_client(client_socket)   
             client_socket.close()
