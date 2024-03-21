@@ -2,23 +2,37 @@ import socket
 import re
 import os 
 
-WWW_PATH = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4.4\wwwroot"
+WWW_PATH = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\wwwroot"
 SOCKET_TIMEOUT = 1
 REDIRECT  = {'\\index1.html': '\\index.html'}
 FORBIDDEN = {'\\index3.html'}
 
 def check_request(request):
-    if  re.search("^(GET )((\/[a-zA-Z0-9\.]{0,}){1,})( HTTP\/[1-9\.]+)", request):
+    if  re.search("^(GET )((\/[a-zA-Z0-9=\-\.\?&]{0,}){1,})( HTTP\/[1-9\.]+)", request):
         return True, request.split(' ')[1]
     return False, None
 
-def file_data(path):
+def get_next(path):
+    number = int(path[path.index('=')+1:])
+    next = number + 1 
+    return next, len(str(next))
+
+def area(path):
+    height = int(path[path.index('height=') + 7: path.index('&')])
+    width = int(path[path.index('width=')+6:])
+    if  width * height % 2 == 0:
+        value = width * height // 2
+    else:
+        value = width * height / 2
+    return value, len(str(value))
+
+def get_file_data(path):
     file_type = path.split('.')[-1]
     if file_type == 'txt' or file_type == 'html':
         file_type = "text/html; charset=utf-8"
         with open(WWW_PATH + path, 'r', encoding="utf8") as file:
             file_content = file.read()
-        return file_content, file_type, os.path.getsize(WWW_PATH + path)
+        return file_content, file_type, len(file_content)
     if file_type == 'js':
         file_type = "text/javascript; charset=utf-8"
         with open(WWW_PATH + path, 'r', encoding="utf8") as file:
@@ -39,6 +53,12 @@ def file_data(path):
         with open(WWW_PATH + path, 'rb') as file:
             file_content = file.read()
         return file_content, file_type, os.path.getsize(WWW_PATH + path)
+    if file_type == 'gif':
+        file_type = "image/gif"
+        with open(WWW_PATH + path, 'rb') as file:
+            file_content = file.read()
+        return file_content, file_type, os.path.getsize(WWW_PATH + path)
+
     else:
         raise FileNotFoundError 
 
@@ -48,7 +68,15 @@ def create_response(path):
     if path == '\\':
         path = '\\index.html'
     
-    if not path.endswith(('.html', '.jpg', '.js', '.css', '.ico')):
+    if path.startswith('\\calculate-next'):
+        next, length = get_next(path)
+        return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: text/plain\r\n\r\n{next}".encode()
+    
+    if path.startswith('\\calculate-area'):
+        area_value, length = area(path)
+        return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: text/plain\r\n\r\n{area_value}".encode()
+    
+    if not path.endswith(('.html', '.jpg', '.js', '.css', '.ico', 'gif')):
         path = path + '.html'
     
     if path in FORBIDDEN:
@@ -58,8 +86,8 @@ def create_response(path):
         return "HTTP/1.1 302 Found\r\nLocation: {}\r\n".format(REDIRECT[path]).encode()
     
     try:
-        file_content, file_type, length = file_data(path)
-        if file_type == 'image/jpeg':
+        file_content, file_type, length = get_file_data(path)
+        if file_type == 'image/jpeg' or file_type == 'image/gif':
             return "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: {}\r\n\r\n".format(length, file_type).encode() + file_content
         return "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: {}\r\n\r\n{}".format(length, file_type, file_content).encode()
     except IsADirectoryError:
@@ -72,7 +100,7 @@ def create_response(path):
 def handle_client(client_socket):
     while True:
         try:
-            request = client_socket.recv(4096).decode()
+            request = client_socket.recv(1024).decode()
             end_line = request.index("\r\n")
             request = request[:end_line]
             valid, path = check_request(request)
@@ -95,6 +123,7 @@ def main():
 
         while True:
             (client_socket, client_address) = server_socket.accept() 
+            print(f"client connected {client_address}")
             client_socket.settimeout(SOCKET_TIMEOUT)
             handle_client(client_socket)   
             client_socket.close()
