@@ -60,8 +60,9 @@ def create_response(path):
         path = '\\index.html'
     
     if path.startswith('\\calculate-next'):
+        print(1)
         next, length = get_next(path)
-        return f"HTTP/1.1 200 OK\r\nContent-Length: {next}\r\nContent-Type: text/plain\r\n\r\n{length}".encode()
+        return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: text/plain\r\n\r\n{next}".encode()
     
     if not path.endswith(('.html', '.jpg', '.js', '.css', '.ico', 'gif')):
         path = path + '.html'
@@ -90,9 +91,7 @@ def handle_client(client_socket):
             request = client_socket.recv(1024).decode()
             end_line = request.index("\r\n")
             request = request[:end_line]
-            print(request)
             valid, path = check_request(request)
-            print(valid)
             if valid:
                 response = create_response(path)
                 client_socket.send(response)
