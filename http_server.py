@@ -8,9 +8,14 @@ REDIRECT  = {'\\index1.html': '\\index.html'}
 FORBIDDEN = {'\\index3.html'}
 
 def check_request(request):
-    if  re.search("^(GET )((\/[a-zA-Z0-9\.]{0,}){1,})( HTTP\/[1-9\.]+)", request):
+    if  re.search("^(GET )((\/[a-zA-Z0-9=\-\.\?]{0,}){1,})( HTTP\/[1-9\.]+)", request):
         return True, request.split(' ')[1]
     return False, None
+
+def get_next(path):
+    number = int(path[path.index('=')+1:])
+    next = number + 1 
+    return next, len(str(next))
 
 def get_file_data(path):
     file_type = path.split('.')[-1]
@@ -39,6 +44,12 @@ def get_file_data(path):
         with open(WWW_PATH + path, 'rb') as file:
             file_content = file.read()
         return file_content, file_type, os.path.getsize(WWW_PATH + path)
+    if file_type == 'gif':
+        file_type = "image/gif"
+        with open(WWW_PATH + path, 'rb') as file:
+            file_content = file.read()
+        return file_content, file_type, os.path.getsize(WWW_PATH + path)
+
     else:
         raise FileNotFoundError 
 
@@ -48,7 +59,11 @@ def create_response(path):
     if path == '\\':
         path = '\\index.html'
     
-    if not path.endswith(('.html', '.jpg', '.js', '.css', '.ico')):
+    if path.startswith('\\calculate-next'):
+        next, length = get_next(path)
+        return f"HTTP/1.1 200 OK\r\nContent-Length: {next}\r\nContent-Type: text/plain\r\n\r\n{length}".encode()
+    
+    if not path.endswith(('.html', '.jpg', '.js', '.css', '.ico', 'gif')):
         path = path + '.html'
     
     if path in FORBIDDEN:
@@ -59,7 +74,7 @@ def create_response(path):
     
     try:
         file_content, file_type, length = get_file_data(path)
-        if file_type == 'image/jpeg':
+        if file_type == 'image/jpeg' or file_type == 'image/gif':
             return "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: {}\r\n\r\n".format(length, file_type).encode() + file_content
         return "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: {}\r\n\r\n{}".format(length, file_type, file_content).encode()
     except IsADirectoryError:
@@ -75,7 +90,9 @@ def handle_client(client_socket):
             request = client_socket.recv(1024).decode()
             end_line = request.index("\r\n")
             request = request[:end_line]
+            print(request)
             valid, path = check_request(request)
+            print(valid)
             if valid:
                 response = create_response(path)
                 client_socket.send(response)
