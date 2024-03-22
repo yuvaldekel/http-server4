@@ -3,16 +3,49 @@ import re
 import os 
 
 WWW_PATH = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\wwwroot"
+UPLOADS  = "C:\\Users\\yonat\\Documents\\Yuval\\devops\\networking\\http-server4\\wwwroot\\uploads\\"
 SOCKET_TIMEOUT = 1
 REDIRECT  = {'\\index1.html': '\\index.html'}
 FORBIDDEN = {'\\index3.html'}
 
 def check_request(request):
-    if  re.search("^(GET )((\/[a-zA-Z0-9=\-\.\?&]{0,}){1,})( HTTP\/[1-9\.]+)", request):
-        return True, request.split(' ')[1]
-    return False, None
+    content_length = None
+    path = None
+    valid = False
 
-def get_next(path):
+    end_line = request.index("\r\n")
+    request_line = request[:end_line]
+    
+    if  re.search("^((GET )|(POST ))((\/[a-zA-Z0-9=\-_\.\?&]{0,}){1,})( HTTP\/[1-9\.]+)$", request_line):
+        valid = True
+        path = request_line.split(' ')[1]
+        method = request_line.split(' ')[0]
+        if method == "POST":
+            content_length = get_content_length(request)
+            print(content_length)
+    return valid, method, path, content_length
+
+def get_content_length(request):
+    if "Content-Length: " in request:
+        return int(request[request.index("Content-Length: ")+16:request.index("\r\n",request.index("Content-Length:"))])
+
+def post_image(path, data):
+    if not path.endswith(".jpg"):
+        return "HTTP/1.1 400 Bad Request\r\n".encode()
+    file_name = path[path.index('file-name=')+10:]
+    try:
+        with open(UPLOADS + file_name, 'wb') as file:
+                file.write(data)
+        return "HTTP/1.1 200 OK\r\n\r\file saved".encode()
+    except IOError:
+        return "HTTP/1.1 400 Bad Request\r\n".encode()
+    
+def send_image(path):
+    image_name = "\\uploads\\" + path[path.index('=')+1:]
+    print(image_name)
+    return get_file_data(image_name)
+
+def get_next(path):  
     number = int(path[path.index('=')+1:])
     next = number + 1 
     return next, len(str(next))
@@ -62,12 +95,8 @@ def get_file_data(path):
     else:
         raise FileNotFoundError 
 
-def create_response(path):
-    path = path.replace('/', '\\')
-    
-    if path == '\\':
-        path = '\\index.html'
-    
+def GET(path):
+
     if path.startswith('\\calculate-next'):
         next, length = get_next(path)
         return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: text/plain\r\n\r\n{next}".encode()
@@ -76,6 +105,17 @@ def create_response(path):
         area_value, length = area(path)
         return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: text/plain\r\n\r\n{area_value}".encode()
     
+    if path.startswith('\\image'):
+        try:
+            image_content, content_type, length = send_image(path)
+            return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: {content_type}\r\n\r\n".encode() + image_content
+        except IsADirectoryError:
+            return "HTTP/1.1 404 Not Found".encode()
+        except FileNotFoundError as e:
+            return "HTTP/1.1 404 Not Found".encode()
+        except PermissionError:
+            return "HTTP/1.1 404 Not Found".encode()
+
     if not path.endswith(('.html', '.jpg', '.js', '.css', '.ico', 'gif')):
         path = path + '.html'
     
@@ -97,15 +137,42 @@ def create_response(path):
     except PermissionError:
         return "HTTP/1.1 404 Not Found".encode()
 
-def handle_client(client_socket):
+def POST(path, body):
+    if path.startswith('\\upload'):
+        return post_image(path, body)
+    
+    if path in FORBIDDEN:
+        return "HTTP/1.1 403 Forbidden\r\n".encode()
+    
+    if path in REDIRECT:
+        return "HTTP/1.1 302 Found\r\nLocation: {}\r\n".format(REDIRECT[path]).encode()
+    
+
+def create_response(method, path, body):
+    path = path.replace('/', '\\')
+    if path == '\\':
+        path = '\\index.html'
+
+    if method == "GET":
+        return GET(path)
+    if method == "POST":
+        return POST(path, body)
+
+def handle_client(client_socket): 
+    body = None
     while True:
         try:
-            request = client_socket.recv(1024).decode()
-            end_line = request.index("\r\n")
-            request = request[:end_line]
-            valid, path = check_request(request)
+            request = client_socket.recv(2048).decode()
+
+            valid, method, path, content_length = check_request(request)
             if valid:
-                response = create_response(path)
+
+                if content_length != None:
+                    body = client_socket.recv(content_length)
+                    while len(body) != content_length:
+                        body = body + client_socket.recv(content_length)
+                
+                response = create_response(method, path, body)
                 client_socket.send(response)
                 break
             else:
@@ -123,7 +190,7 @@ def main():
 
         while True:
             (client_socket, client_address) = server_socket.accept() 
-            print(f"client connected {client_address}")
+            (f"client connected {client_address}")
             client_socket.settimeout(SOCKET_TIMEOUT)
             handle_client(client_socket)   
             client_socket.close()
