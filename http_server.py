@@ -3,14 +3,15 @@ import re
 import os 
 
 WWW_PATH = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\wwwroot"
+UPLOADS  = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\wwwroot\uploads"
 SOCKET_TIMEOUT = 1
 REDIRECT  = {'\\index1.html': '\\index.html'}
 FORBIDDEN = {'\\index3.html'}
 
 def check_request(request):
-    if  re.search("^(GET )((\/[a-zA-Z0-9=\-\.\?&]{0,}){1,})( HTTP\/[1-9\.]+)", request):
-        return True, request.split(' ')[1]
-    return False, None
+    if  re.search("^((GET )|(POST ))((\/[a-zA-Z0-9=\-\.\?&]{0,}){1,})( HTTP\/[1-9\.]+)$", request):
+        return True, request.split(' ')[1], request.split(' ')[0]
+    return False, None, None
 
 def get_next(path):
     number = int(path[path.index('=')+1:])
@@ -62,7 +63,7 @@ def get_file_data(path):
     else:
         raise FileNotFoundError 
 
-def create_response(path):
+def create_response(path, method):
     path = path.replace('/', '\\')
     
     if path == '\\':
@@ -103,9 +104,9 @@ def handle_client(client_socket):
             request = client_socket.recv(1024).decode()
             end_line = request.index("\r\n")
             request = request[:end_line]
-            valid, path = check_request(request)
+            valid, path, method = check_request(request)
             if valid:
-                response = create_response(path)
+                response = create_response(path, method)
                 client_socket.send(response)
                 break
             else:
