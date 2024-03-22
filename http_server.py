@@ -69,20 +69,24 @@ def post_image(path, data):
     if not path.endswith(".jpg") and "file_name" not in path:
         raise ValueError
     file_name = path[path.index('file-name=')+10:]
+    if os.path.isfile(UPLOADS + file_name):
+        raise ValueError
     with open(UPLOADS + file_name, 'wb') as file:
             file.write(data)
             return file_name, len(data)
     
 def send_image(path):
+    if not path.endswith('.jpg'):
+        path = path + '.jpg'
     if "image-name=" not in path:
         raise ValueError
-    image_name = "\\uploads\\" + path[path.index('image-name=')+1:]
+    image_name = "\\uploads\\" + path[path.index('image-name=')+11:]
     return get_file_data(image_name)
 
 def get_next(path):  
     if 'num=' not in path:
         raise ValueError
-    number = int(path[path.index('num=')+1:])
+    number = int(path[path.index('num=') + 4:])
     next = number + 1 
     return next, len(str(next))
 
@@ -98,20 +102,23 @@ def area(path):
     return value, len(str(value))
 
 def GET(path):
-
     if path.startswith('\\calculate-next?'):
         try:
             next, length = get_next(path)
             return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: text/plain\r\n\r\n{next}".encode()
-        except:
+        except ValueError:
             return "HTTP/1.1 400 Bad Request\r\n".encode()
+        except:
+            return "HTTP/1.1 500 Internal Server Error".encode()
 
     if path.startswith('\\calculate-area?'):
         try:
             area_value, length = area(path)
             return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: text/plain\r\n\r\n{area_value}".encode()
-        except:
+        except ValueError:
             return "HTTP/1.1 400 Bad Request\r\n".encode()    
+        except:
+            return "HTTP/1.1 500 Internal Server Error".encode()
     
     if path.startswith('\\image?'):
         try:
@@ -119,12 +126,14 @@ def GET(path):
             return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: {content_type}\r\n\r\n".encode() + image_content
         except IsADirectoryError:
             return "HTTP/1.1 404 Not Found".encode()
-        except FileNotFoundError as e:
+        except FileNotFoundError:
             return "HTTP/1.1 404 Not Found".encode()
         except PermissionError:
             return "HTTP/1.1 404 Not Found".encode()
         except ValueError:
             return "HTTP/1.1 404 Not Found".encode()
+        except:
+            return "HTTP/1.1 500 Internal Server Error".encode()
 
     if not path.endswith(('.html', '.jpg', '.js', '.css', '.ico', 'gif')):
         path = path + '.html'
@@ -147,7 +156,9 @@ def GET(path):
     except PermissionError:
         return "HTTP/1.1 404 Not Found".encode()
     except ValueError:
-            return "HTTP/1.1 404 Not Found".encode()
+        return "HTTP/1.1 404 Not Found".encode()
+    except:
+        return "HTTP/1.1 500 Internal Server Error".encode()
 
 
 def POST(path, body):
@@ -160,11 +171,13 @@ def POST(path, body):
     if path.startswith('\\upload'):
         try:
             file_name, image_length = post_image(path, body) 
-            return "HTTP/1.1 200 OK\r\n\r\nfile {} of size {} was saved".format(file_name, image_length).encode()
+            return "HTTP/1.1 200 OK\r\n\r\nfile {} of size {} was saved successfully".format(file_name, image_length).encode()
         except ValueError:
             return "HTTP/1.1 400 Bad Request\r\n".encode()
         except IOError:
-            return "HTTP/1.1 400 Bad Request\r\n".encode()
+            return "HTTP/1.1 500 Internal Server Error".encode()
+        except:
+            return "HTTP/1.1 500 Internal Server Error".encode()
  
 
 def create_response(method, path, body):
