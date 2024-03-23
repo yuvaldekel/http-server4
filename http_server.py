@@ -6,7 +6,7 @@ import datetime
 WWW_PATH = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\wwwroot"
 UPLOADS  = "C:\\Users\\yonat\\Documents\\Yuval\\devops\\networking\\http-server4\\wwwroot\\uploads\\"
 SOCKET_TIMEOUT = 1
-REDIRECT  = {'\\index1.html': '\\index.html', '\\': '\\index.html'}
+REDIRECT  = {'\\index1.html': '\\index.html'}
 FORBIDDEN = {'\\index3.html'}
 LOG = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\httpserver.log"
 TEMP = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\temp.log"
@@ -222,8 +222,8 @@ def POST(resource, body):
 #pass to the correct function
 def create_response(method, resource, body):
     resource = resource.replace('/', '\\')
-    """if resource == '\\':
-        resource = '\\index.html'"""
+    if resource == '\\':
+        resource = '\\index.html'
 
     if method == "GET":
         return GET(resource)
