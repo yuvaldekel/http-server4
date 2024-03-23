@@ -6,10 +6,28 @@ import datetime
 WWW_PATH = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\wwwroot"
 UPLOADS  = "C:\\Users\\yonat\\Documents\\Yuval\\devops\\networking\\http-server4\\wwwroot\\uploads\\"
 SOCKET_TIMEOUT = 1
-REDIRECT  = {'\\index1.html': '\\index.html'}
+REDIRECT  = {'\\index1.html': '\\index.html', '\\': '\\index.html'}
 FORBIDDEN = {'\\index3.html'}
 LOG = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\httpserver.log"
+TEMP = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\temp.log"
 
+
+def write_log(order, **parameter):
+    if order == 1:
+        client_log = "{} [{}] ".format(parameter['client_address_arg'],parameter['date_arg'])
+        with  open(TEMP, 'w') as temp:
+            temp.write(client_log)
+    if order == 2:
+        client_log = '"{} {}" '.format(parameter['method_arg'], parameter['resource_arg'])
+        with  open(TEMP, 'a') as temp:
+            temp.write(client_log)
+    if order == 3:
+        with  open(TEMP, 'r') as temp:
+            client_log = temp.read()
+        os.remove(TEMP)
+        client_log = client_log + '{}\n'.format(parameter['status_code_arg'])
+        with  open(LOG, 'a') as log_file:
+            log_file.write(client_log)
 
 #check if the request structure is okay
 #if it is separate to the http method and http resource 
@@ -120,6 +138,12 @@ def area(resource):
 #from the function result create response if the function raised error
 #return http error code depend on the exception
 def GET(resource):
+    if resource in FORBIDDEN:
+        return "HTTP/1.1 403 Forbidden\r\n".encode(), '403'
+    
+    if resource in REDIRECT:
+        return "HTTP/1.1 302 Found\r\nLocation: {}\r\n".format(REDIRECT[resource]).encode(), '302'
+    
     if resource.startswith('\\calculate-next?'):
         try:
             next, length = get_next(resource)
@@ -155,12 +179,6 @@ def GET(resource):
 
     if not resource.endswith(('.html', '.jpg', '.js', '.css', '.ico', 'gif')):
         resource = resource + '.html'
-    
-    if resource in FORBIDDEN:
-        return "HTTP/1.1 403 Forbidden\r\n".encode(), '403'
-    
-    if resource in REDIRECT:
-        return "HTTP/1.1 302 Found\r\nLocation: {}\r\n".format(REDIRECT[resource]).encode(), '302'
     
     try:
         file_content, file_type, length = get_file_data(resource)
@@ -204,8 +222,8 @@ def POST(resource, body):
 #pass to the correct function
 def create_response(method, resource, body):
     resource = resource.replace('/', '\\')
-    if resource == '\\':
-        resource = '\\index.html'
+    """if resource == '\\':
+        resource = '\\index.html'"""
 
     if method == "GET":
         return GET(resource)
@@ -218,10 +236,13 @@ def handle_client(client_socket):
         try:
             
             request = ''
-            while not request.endswith('\r\n\r\n'):
+            i = 0
+            while not request.endswith('\r\n\r\n') and i <= 1500:
                 request = request + client_socket.recv(1).decode()
+                i = i + 1
 
             valid, method, resource, content_length = check_request(request)
+            
             if valid:
 
                 if content_length != None:
@@ -229,22 +250,23 @@ def handle_client(client_socket):
                     while len(body) != content_length:
                         body = body + client_socket.recv(content_length)
                 
-                client_log = '"{} {}" '.format(method, resource)
-                with  open(LOG, 'a') as log_file:
-                    log_file.write(client_log)
+                try:
+                    write_log(2,method_arg = method, resource_arg = resource)
+                except Exception as e:
+                    print(e)
 
                 response, status_code = create_response(method, resource, body)
-                
-                client_log = f'{status_code}\n'
-                with  open(LOG, 'a') as log_file:
-                    log_file.write(client_log)
-                
                 client_socket.send(response)
 
+                try:
+                    write_log(3,status_code_arg = status_code)
+                except Exception as e:
+                    print(e)
                 break
             else:
                 client_socket.send("HTTP/1.1 500 Internal Server Error".encode())
                 break 
+        
         except socket.timeout:
             break
 
@@ -258,10 +280,11 @@ def main():
         while True:
             (client_socket, client_address) = server_socket.accept()
             
-            client_log = "{} [{}] ".format(client_address[0],datetime.datetime.now())
-            with  open(LOG, 'a') as log_file:
-                log_file.write(client_log)
-            
+            try:
+                write_log(1,client_address_arg = client_address[0], date_arg = datetime.datetime.now())
+            except Exception as e:
+                print(e)
+                        
             print(f"client connected {client_address[0]}")
             client_socket.settimeout(SOCKET_TIMEOUT)
             handle_client(client_socket)   
