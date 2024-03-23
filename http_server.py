@@ -1,12 +1,14 @@
 import socket
 import re
-import os 
+import os
+import datetime 
 
 WWW_PATH = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\wwwroot"
 UPLOADS  = "C:\\Users\\yonat\\Documents\\Yuval\\devops\\networking\\http-server4\\wwwroot\\uploads\\"
 SOCKET_TIMEOUT = 1
 REDIRECT  = {'\\index1.html': '\\index.html'}
 FORBIDDEN = {'\\index3.html'}
+LOG = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\httpserver.log"
 
 
 #check if the request structure is okay
@@ -121,60 +123,60 @@ def GET(resource):
     if resource.startswith('\\calculate-next?'):
         try:
             next, length = get_next(resource)
-            return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: text/plain\r\n\r\n{next}".encode()
+            return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: text/plain\r\n\r\n{next}".encode(), '200'
         except ValueError:
-            return "HTTP/1.1 400 Bad Request\r\n".encode()
+            return "HTTP/1.1 400 Bad Request\r\n".encode(), '400'
         except:
-            return "HTTP/1.1 500 Internal Server Error".encode()
+            return "HTTP/1.1 500 Internal Server Error".encode(), '500'
 
     if resource.startswith('\\calculate-area?'):
         try:
             area_value, length = area(resource)
-            return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: text/plain\r\n\r\n{area_value}".encode()
+            return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: text/plain\r\n\r\n{area_value}".encode(), '200'
         except ValueError:
-            return "HTTP/1.1 400 Bad Request\r\n".encode()    
+            return "HTTP/1.1 400 Bad Request\r\n".encode(), '400'
         except:
-            return "HTTP/1.1 500 Internal Server Error".encode()
+            return "HTTP/1.1 500 Internal Server Error".encode(), '500'
     
     if resource.startswith('\\image?'):
         try:
             image_content, content_type, length = send_image(resource)
-            return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: {content_type}\r\n\r\n".encode() + image_content
+            return f"HTTP/1.1 200 OK\r\nContent-Length: {length}\r\nContent-Type: {content_type}\r\n\r\n".encode() + image_content, '200'
         except IsADirectoryError:
-            return "HTTP/1.1 404 Not Found".encode()
+            return "HTTP/1.1 404 Not Found".encode(), '404'
         except FileNotFoundError:
-            return "HTTP/1.1 404 Not Found".encode()
+            return "HTTP/1.1 404 Not Found".encode(), '404'
         except PermissionError:
-            return "HTTP/1.1 404 Not Found".encode()
+            return "HTTP/1.1 404 Not Found".encode(), '404'
         except ValueError:
-            return "HTTP/1.1 404 Not Found".encode()
+            return "HTTP/1.1 404 Not Found".encode(), '404'
         except:
-            return "HTTP/1.1 500 Internal Server Error".encode()
+            return "HTTP/1.1 500 Internal Server Error".encode(), '500'
 
     if not resource.endswith(('.html', '.jpg', '.js', '.css', '.ico', 'gif')):
         resource = resource + '.html'
     
     if resource in FORBIDDEN:
-        return "HTTP/1.1 403 Forbidden\r\n".encode()
+        return "HTTP/1.1 403 Forbidden\r\n".encode(), '403'
     
     if resource in REDIRECT:
-        return "HTTP/1.1 302 Found\r\nLocation: {}\r\n".format(REDIRECT[resource]).encode()
+        return "HTTP/1.1 302 Found\r\nLocation: {}\r\n".format(REDIRECT[resource]).encode(), '302'
     
     try:
         file_content, file_type, length = get_file_data(resource)
         if file_type == 'image/jpeg' or file_type == 'image/gif':
-            return "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: {}\r\n\r\n".format(length, file_type).encode() + file_content
-        return "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: {}\r\n\r\n{}".format(length, file_type, file_content).encode()
+            return "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: {}\r\n\r\n".format(length, file_type).encode() + file_content, '200'
+        return "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nContent-Type: {}\r\n\r\n{}".format(length, file_type, file_content).encode(), '200'
     except IsADirectoryError:
-        return "HTTP/1.1 404 Not Found".encode()
+        return "HTTP/1.1 404 Not Found".encode(), '404'
     except FileNotFoundError as e:
-        return "HTTP/1.1 404 Not Found".encode()
+        return "HTTP/1.1 404 Not Found".encode(), '404'
     except PermissionError:
-        return "HTTP/1.1 404 Not Found".encode()
+        return "HTTP/1.1 404 Not Found".encode(), '404'
     except ValueError:
-        return "HTTP/1.1 404 Not Found".encode()
+        return "HTTP/1.1 404 Not Found".encode(), '404'
     except:
-        return "HTTP/1.1 500 Internal Server Error".encode()
+        return "HTTP/1.1 500 Internal Server Error".encode(), '500'
 
 #if the method is post check the resource
 #pass to the correct function with the body depend on the resource
@@ -182,21 +184,21 @@ def GET(resource):
 #return http error code depend on the exception
 def POST(resource, body):
     if resource in FORBIDDEN:
-        return "HTTP/1.1 403 Forbidden\r\n".encode()
+        return "HTTP/1.1 403 Forbidden\r\n".encode(), '403'
     
     if resource in REDIRECT:
-        return "HTTP/1.1 302 Found\r\nLocation: {}\r\n".format(REDIRECT[resource]).encode()
+        return "HTTP/1.1 302 Found\r\nLocation: {}\r\n".format(REDIRECT[resource]).encode(), '302'
     
     if resource.startswith('\\upload'):
         try:
             file_name, image_length = post_image(resource, body) 
-            return "HTTP/1.1 200 OK\r\n\r\nfile {} of size {} was saved successfully".format(file_name, image_length).encode()
+            return "HTTP/1.1 200 OK\r\n\r\nfile {} of size {} was saved successfully".format(file_name, image_length).encode(), '200'
         except ValueError:
-            return "HTTP/1.1 400 Bad Request\r\n".encode()
+            return "HTTP/1.1 400 Bad Request\r\n".encode(), '400'
         except IOError:
-            return "HTTP/1.1 500 Internal Server Error".encode()
+            return "HTTP/1.1 500 Internal Server Error".encode(), '500'
         except:
-            return "HTTP/1.1 500 Internal Server Error".encode()
+            return "HTTP/1.1 500 Internal Server Error".encode(), '500'
  
 #get method resource and body(might be None)
 #pass to the correct function
@@ -214,7 +216,10 @@ def handle_client(client_socket):
     body = None
     while True:
         try:
-            request = client_socket.recv(2048).decode()
+            
+            request = ''
+            while not request.endswith('\r\n\r\n'):
+                request = request + client_socket.recv(1).decode()
 
             valid, method, resource, content_length = check_request(request)
             if valid:
@@ -224,8 +229,18 @@ def handle_client(client_socket):
                     while len(body) != content_length:
                         body = body + client_socket.recv(content_length)
                 
-                response = create_response(method, resource, body)
+                client_log = '"{} {}" '.format(method, resource)
+                with  open(LOG, 'a') as log_file:
+                    log_file.write(client_log)
+
+                response, status_code = create_response(method, resource, body)
+                
+                client_log = f'{status_code}\n'
+                with  open(LOG, 'a') as log_file:
+                    log_file.write(client_log)
+                
                 client_socket.send(response)
+
                 break
             else:
                 client_socket.send("HTTP/1.1 500 Internal Server Error".encode())
@@ -241,7 +256,12 @@ def main():
         print("Server is up and running")
 
         while True:
-            (client_socket, client_address) = server_socket.accept() 
+            (client_socket, client_address) = server_socket.accept()
+            
+            client_log = "{} [{}] ".format(client_address[0],datetime.datetime.now())
+            with  open(LOG, 'a') as log_file:
+                log_file.write(client_log)
+            
             print(f"client connected {client_address[0]}")
             client_socket.settimeout(SOCKET_TIMEOUT)
             handle_client(client_socket)   
