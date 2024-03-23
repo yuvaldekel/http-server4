@@ -1,7 +1,8 @@
 import socket
 import re
 import os
-import datetime 
+import datetime
+import time 
 
 WWW_PATH = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\wwwroot"
 UPLOADS  = "C:\\Users\\yonat\\Documents\\Yuval\\devops\\networking\\http-server4\\wwwroot\\uploads\\"
@@ -13,34 +14,31 @@ TEMP = r"C:\Users\yonat\Documents\Yuval\devops\networking\http-server4\temp.log"
 
 
 def write_log(order, **parameter):
-    if order == 1:
-        client_log = "{} [{}] ".format(parameter['client_address_arg'],parameter['date_arg'])
-        with  open(TEMP, 'w') as temp:
-            temp.write(client_log)
-    if order == 2:
-        client_log = '"{} {}" '.format(parameter['method_arg'], parameter['resource_arg'])
-        with  open(TEMP, 'a') as temp:
-            temp.write(client_log)
-    if order == 3:
-        with  open(TEMP, 'r') as temp:
-            client_log = temp.read()
-        os.remove(TEMP)
-        client_log = client_log + '{}\n'.format(parameter['status_code_arg'])
+    try:
+        if order == 1:
+            client_log = "{} [{}] ".format(parameter['client_address_arg'],parameter['date_arg'])
+        if order == 2:
+            client_log = '"{} {}" '.format(parameter['method_arg'], parameter['resource_arg'])
+        if order == 3:
+            client_log = '{}\n'.format(parameter['status_code_arg'])
         with  open(LOG, 'a') as log_file:
             log_file.write(client_log)
+    except Exception as e:
+        print(e)
 
 #check if the request structure is okay
 #if it is separate to the http method and http resource 
 #if the method is post return also the content length header
 def check_request(request):
     content_length = None
-    resource = None
+    resource = ''
     valid = False
+    method = ''
 
-    end_line = request.index("\r\n")
+    end_line = request.find("\r\n")
     request_line = request[:end_line]
     
-    if  re.search("^((GET )|(POST ))((\/[a-zA-Z0-9=\-_\.\?&]{0,}){1,})( HTTP\/[1-9\.]+)$", request_line):
+    if  re.search("^((GET )|(POST ))((\/[a-zA-Z0-9=\-_\.\?&%]{0,}){1,})( HTTP\/[1-9\.]+)$", request_line):
         valid = True
         resource = request_line.split(' ')[1]
         method = request_line.split(' ')[0]
@@ -230,45 +228,42 @@ def create_response(method, resource, body):
     if method == "POST":
         return POST(resource, body)
 
-def handle_client(client_socket): 
+def handle_client(client_socket, client_address): 
     body = None
     while True:
         try:
-            
             request = ''
             i = 0
             while not request.endswith('\r\n\r\n') and i <= 1500:
                 request = request + client_socket.recv(1).decode()
                 i = i + 1
-
+            
             valid, method, resource, content_length = check_request(request)
             
+            write_log(1,client_address_arg = client_address, date_arg = datetime.datetime.now())
+            write_log(2,method_arg = method, resource_arg = resource)
+            
             if valid:
-
                 if content_length != None:
                     body = client_socket.recv(content_length)
                     while len(body) != content_length:
                         body = body + client_socket.recv(content_length)
-                
-                try:
-                    write_log(2,method_arg = method, resource_arg = resource)
-                except Exception as e:
-                    print(e)
 
                 response, status_code = create_response(method, resource, body)
                 client_socket.send(response)
 
-                try:
-                    write_log(3,status_code_arg = status_code)
-                except Exception as e:
-                    print(e)
+                write_log(3,status_code_arg = status_code)
                 break
             else:
-                client_socket.send("HTTP/1.1 500 Internal Server Error".encode())
+                client_socket.send("HTTP/1.1 400 Bad request".encode())
+                write_log(3,status_code_arg = '400')
                 break 
-        
+
         except socket.timeout:
             break
+        except (ValueError, IndexError) as e:
+            client_socket.send("HTTP/1.1 500 Internal Server Error".encode())
+            write_log(3,status_code_arg = '500')
 
 def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:        
@@ -279,15 +274,10 @@ def main():
 
         while True:
             (client_socket, client_address) = server_socket.accept()
-            
-            try:
-                write_log(1,client_address_arg = client_address[0], date_arg = datetime.datetime.now())
-            except Exception as e:
-                print(e)
                         
             print(f"client connected {client_address[0]}")
             client_socket.settimeout(SOCKET_TIMEOUT)
-            handle_client(client_socket)   
+            handle_client(client_socket, client_address[0])   
             client_socket.close()
 
 if __name__ == "__main__":
