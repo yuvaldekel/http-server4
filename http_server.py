@@ -24,7 +24,7 @@ def write_log(order, **parameter):
         with  open(LOG, 'a') as log_file:
             log_file.write(client_log)
     except Exception as e:
-        print(e)
+        pass
 
 #check if the request structure is okay
 #if it is separate to the http method and http resource 
@@ -35,7 +35,7 @@ def check_request(request):
     valid = False
     method = ''
 
-    end_line = request.find("\r\n")
+    end_line = request.index("\r\n")
     request_line = request[:end_line]
     
     if  re.search("^((GET )|(POST ))((\/[a-zA-Z0-9=\-_\.\?&%]{0,}){1,})( HTTP\/[1-9\.]+)$", request_line):
@@ -104,11 +104,11 @@ def post_image(resource, data):
 
 #get resource take from it which image to read read it using get_file_data
 def send_image(resource):
-    if not resource.endswith('.jpg'):
-        resource = resource + '.jpg'
     if "image-name=" not in resource:
         raise ValueError
     image_name = "\\uploads\\" + resource[resource.index('image-name=')+11:]
+    if not image_name.endswith('.jpg'):
+        image_name = image_name + '.jpg'
     return get_file_data(image_name)
 
 #get resource take the number parameter and return number + 1
@@ -266,6 +266,8 @@ def handle_client(client_socket, client_address):
         except (ValueError, IndexError) as e:
             client_socket.send("HTTP/1.1 500 Internal Server Error".encode())
             write_log(3,status_code_arg = '500')
+            break
+        except:
             break
 
 def main():
