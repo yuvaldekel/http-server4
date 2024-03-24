@@ -246,6 +246,7 @@ def handle_client(client_socket, client_address):
             if valid:
                 if content_length != None:
                     body = client_socket.recv(content_length)
+                    i = 0
                     while len(body) != content_length:
                         body = body + client_socket.recv(content_length)
 
@@ -260,10 +261,12 @@ def handle_client(client_socket, client_address):
                 break 
 
         except socket.timeout:
+            write_log(3,status_code_arg = '500')
             break
         except (ValueError, IndexError) as e:
             client_socket.send("HTTP/1.1 500 Internal Server Error".encode())
             write_log(3,status_code_arg = '500')
+            break
 
 def main():
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as server_socket:        
