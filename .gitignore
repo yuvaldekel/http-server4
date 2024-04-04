@@ -1,2 +1,3 @@
 venv-http/
 __pycache__/
+.azure/
